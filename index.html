@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>신비한 생물 목격 지도</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 300px;
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .stats {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1001;
+        }
+        
+        .legend {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 2000;
+            max-width: 200px;
+            cursor: move;
+            user-select: none;
+            border: 2px solid #ddd;
+        }
+        
+        .legend.dragging {
+            cursor: grabbing;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .year-controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 200px;
+            height: calc(100vh - 20px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .year-controls-header {
+            flex-shrink: 0;
+        }
+        
+        .type-filters {
+            margin: 10px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 0;
+        }
+        
+        .filter-item input[type="checkbox"] {
+            margin: 0;
+        }
+        
+        .filter-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid #ccc;
+        }
+        
+        .year-controls-content {
+            flex: 1;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 200px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            position: relative;
+            cursor: crosshair;
+        }
+        
+        .chart-svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .chart-line {
+            fill: none;
+            stroke-width: 2;
+        }
+        
+        .chart-line.ufo {
+            stroke: #3700ff;
+        }
+        
+        .chart-line.bigfoot {
+            stroke: #33ff00;
+        }
+        
+        .chart-line.dogman {
+            stroke: #ffae00;
+        }
+        
+        .chart-axis {
+            stroke: #666;
+            stroke-width: 1;
+        }
+        
+        .chart-text {
+            font-size: 10px;
+            fill: #666;
+        }
+        
+        .chart-slider {
+            position: absolute;
+            top: 10px;
+            bottom: 10px;
+            width: 2px;
+            background: #333;
+            cursor: ew-resize;
+            z-index: 10;
+        }
+        
+        .chart-slider::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -3px;
+            width: 8px;
+            height: 8px;
+            background: #333;
+            border-radius: 50%;
+        }
+        
+        .chart-slider::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: -3px;
+            width: 8px;
+            height: 8px;
+            background: #333;
+            border-radius: 50%;
+        }
+        
+        .year-controls h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        
+        .year-slider-container {
+            margin: 10px 0;
+        }
+        
+        .year-slider {
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        .year-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        
+        .year-btn {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .year-btn:hover {
+            background: #e9ecef;
+        }
+        
+        .year-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .year-range {
+            text-align: center;
+            font-weight: bold;
+            color: #666;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="year-controls">
+        <div class="year-controls-header">
+            <h3>mystery creature sightings</h3>
+            <div class="type-filters">
+                <label class="filter-item">
+                    <input type="checkbox" id="ufo-filter" checked>
+                    <span class="filter-color" style="background-color: #3700ff;"></span>
+                    UFO
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" id="bigfoot-filter" checked>
+                    <span class="filter-color" style="background-color: #33ff00;"></span>
+                    Bigfoot
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" id="dogman-filter" checked>
+                    <span class="filter-color" style="background-color: #ffae00;"></span>
+                    Dogman
+                </label>
+            </div>
+            <div class="stats">
+                <div>UFO: <span id="ufo-count">0</span>, Bigfoot: <span id="bigfoot-count">0</span>, Dogman: <span id="dogman-count">0</span></div>
+            </div>
+            <div class="year-range" id="year-range">전체 기간</div>
+            <div class="year-slider-container">
+                <input type="range" id="year-slider" class="year-slider" min="0" max="100" value="100">
+            </div>
+        </div>
+        <div class="year-controls-content">
+            <div class="chart-container" id="chart-container">
+                <svg class="chart-svg" id="year-chart">
+                    <!-- 연도별 데이터 분포 차트가 여기에 생성됩니다 -->
+                </svg>
+                <div class="chart-slider" id="chart-slider"></div>
+            </div>
+            <div class="year-buttons" id="year-buttons">
+                <!-- 연도 버튼들이 여기에 동적으로 생성됩니다 -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="legend">
+        <h4>범례</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #3700ff;"></div>
+            <span>UFO</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #33ff00;"></div>
+            <span>Bigfoot</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #ffae00;"></div>
+            <span>Dogman</span>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        데이터를 로딩 중입니다...
+    </div>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <script>
+        // 지도 초기화
+        const map = L.map('map').setView([39.8283, -98.5795], 4); // 미국 중심
+        
+        // 타일 레이어 추가
+        L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © Carto'
+        }).addTo(map);
+        
+        // 마커 클러스터링을 위한 그룹
+        const markers = L.layerGroup().addTo(map);
+        
+        // 통계 변수
+        let ufoCount = 0;
+        let bigfootCount = 0;
+        let dogmanCount = 0;
+        
+        // 연도 필터링 변수
+        let allData = {
+            ufo: [],
+            bigfoot: [],
+            dogman: []
+        };
+        let currentYearRange = null;
+        let yearRanges = [];
+        
+        // 타입 필터 상태
+        let typeFilters = {
+            ufo: true,
+            bigfoot: true,
+            dogman: true
+        };
+        
+        // 색상 정의
+        const colors = {
+            ufo: { fill: '#3700ff', stroke: '#2d00cc' },
+            bigfoot: { fill: '#33ff00', stroke: '#2ae600' },
+            dogman: { fill: '#ffae00', stroke: '#e69a00' }
+        };
+        
+        // 연도 추출 함수
+        function extractYear(data) {
+            if (data.date && data.date.trim() !== '') {
+                // #VALUE! 같은 오류 값 제외
+                if (data.date.includes('#VALUE!') || data.date.includes('#') || data.date.includes('!')) {
+                    return null;
+                }
+                
+                const year = parseInt(data.date.split('.')[0]);
+                return isNaN(year) ? null : year;
+            }
+            return null;
+        }
+        
+        // 데이터 유효성 검사 함수
+        function isValidData(item) {
+            // 기본 필드 존재 확인
+            if (!item || typeof item !== 'object') return false;
+            if (!item.latitude || !item.longitude) return false;
+            
+            // 좌표 유효성 검사
+            const lat = parseFloat(item.latitude);
+            const lng = parseFloat(item.longitude);
+            
+            if (isNaN(lat) || isNaN(lng)) return false;
+            if (lat === 0 && lng === 0) return false; // (0,0) 좌표 제외
+            if (lat < -90 || lat > 90) return false; // 위도 범위 확인
+            if (lng < -180 || lng > 180) return false; // 경도 범위 확인
+            
+            // 날짜 유효성 검사 (#VALUE! 등 오류 값 제외)
+            if (item.date && (item.date.includes('#VALUE!') || item.date.includes('#') || item.date.includes('!'))) {
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // 5년 단위 범위 생성 함수
+        function generateYearRanges(data) {
+            const years = new Set();
+            const yearCounts = {};
+            
+            // 모든 데이터에서 연도 추출
+            Object.keys(data).forEach(type => {
+                let typeYearCount = 0;
+                data[type].forEach(item => {
+                    const year = extractYear(item);
+                    if (year && year >= 1900 && year <= 2030) {
+                        years.add(year);
+                        typeYearCount++;
+                    }
+                });
+                yearCounts[type] = typeYearCount;
+                console.log(`${type} 데이터에서 ${typeYearCount}개의 유효한 연도 추출`);
+            });
+            
+            console.log('추출된 연도들:', Array.from(years).sort((a, b) => a - b));
+            console.log('타입별 연도 추출 수:', yearCounts);
+            
+            const sortedYears = Array.from(years).sort((a, b) => a - b);
+            const ranges = [];
+            
+            if (sortedYears.length === 0) return ranges;
+            
+            const minYear = Math.floor(sortedYears[0] / 5) * 5;
+            const maxYear = Math.ceil(sortedYears[sortedYears.length - 1] / 5) * 5;
+            
+            for (let start = minYear; start < maxYear; start += 5) {
+                const end = start + 4;
+                ranges.push({
+                    start: start,
+                    end: end,
+                    label: `${start}-${end}`,
+                    count: 0
+                });
+            }
+            
+            // 전체 기간 추가
+            ranges.unshift({
+                start: null,
+                end: null,
+                label: '전체 기간',
+                count: 0
+            });
+            
+            return ranges;
+        }
+        
+        // 연도 범위에 맞는 데이터 필터링
+        function filterDataByYear(data, yearRange) {
+            if (!yearRange || (yearRange.start === null && yearRange.end === null)) {
+                return data;
+            }
+            
+            const filtered = {
+                ufo: [],
+                bigfoot: [],
+                dogman: []
+            };
+            
+            Object.keys(data).forEach(type => {
+                filtered[type] = data[type].filter(item => {
+                    const year = extractYear(item);
+                    if (year === null) return true; // 연도 정보가 없으면 포함
+                    return year >= yearRange.start && year <= yearRange.end;
+                });
+            });
+            
+            return filtered;
+        }
+        
+        // 마커 생성 함수
+        function createMarker(lat, lng, type, data) {
+            const color = colors[type];
+            const marker = L.circleMarker([lat, lng], {
+                radius: 2,
+                fillColor: color.fill,
+                color: color.stroke,
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.6
+            });
+            
+            // 팝업 내용 생성
+            let popupContent = `
+                <div style="font-family: Arial, sans-serif;">
+                    <h4 style="margin: 0 0 8px 0; color: #2d3436;">${type.toUpperCase()} 목격</h4>
+                    <p style="margin: 4px 0;"><strong>위도:</strong> ${lat.toFixed(6)}</p>
+                    <p style="margin: 4px 0;"><strong>경도:</strong> ${lng.toFixed(6)}</p>
+            `;
+            
+            if (data.date && !data.date.includes('#VALUE!') && !data.date.includes('#') && !data.date.includes('!')) {
+                popupContent += `<p style="margin: 4px 0;"><strong>날짜:</strong> ${data.date}</p>`;
+            }
+            
+            popupContent += `</div>`;
+            
+            marker.bindPopup(popupContent);
+            return marker;
+        }
+        
+        // 데이터 로드 및 지도에 표시
+        async function loadData() {
+            try {
+                // date.json에서 모든 데이터 로드
+                const response = await fetch('date.json');
+                const text = await response.text();
+                
+                let allJsonData = [];
+                try {
+                    allJsonData = JSON.parse(text);
+                } catch (parseError) {
+                    console.error('JSON 파싱 오류:', parseError);
+                    const lines = text.split('\n');
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i].trim();
+                        if (line && line !== '[' && line !== ']' && line.endsWith(',')) {
+                            try {
+                                const cleanLine = line.slice(0, -1);
+                                const obj = JSON.parse(cleanLine);
+                                allJsonData.push(obj);
+                            } catch (lineError) {
+                                // 오류 무시
+                            }
+                        }
+                    }
+                }
+                
+                // type에 따라 데이터 분류
+                allData.ufo = allJsonData.filter(item => item.type === 'ufo');
+                allData.bigfoot = allJsonData.filter(item => item.type === 'big foot');
+                allData.dogman = allJsonData.filter(item => item.type === 'dog man');
+                
+                console.log('데이터 분류 결과:');
+                console.log('UFO:', allData.ufo.length);
+                console.log('Bigfoot:', allData.bigfoot.length);
+                console.log('Dogman:', allData.dogman.length);
+                
+                // 연도 범위 생성
+                yearRanges = generateYearRanges(allData);
+                
+                // UI 초기화
+                createLineChart();
+                createYearButtons();
+                setupSlider();
+                
+                // 기본값: 전체 기간 선택
+                currentYearRange = yearRanges[yearRanges.length - 1]; // 전체 기간
+                selectYearRange(yearRanges.length - 1);
+                
+                // 로딩 완료
+                document.getElementById('loading').style.display = 'none';
+                
+                // 지도 범위 조정
+                if (markers.getLayers().length > 0) {
+                    const group = new L.featureGroup(markers.getLayers());
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+                
+            } catch (error) {
+                console.error('데이터 로딩 중 오류 발생:', error);
+                document.getElementById('loading').innerHTML = '데이터 로딩 중 오류가 발생했습니다.';
+            }
+        }
+        
+        // 통계 업데이트 함수
+        function updateStats() {
+            document.getElementById('ufo-count').textContent = ufoCount;
+            document.getElementById('bigfoot-count').textContent = bigfootCount;
+            document.getElementById('dogman-count').textContent = dogmanCount;
+        }
+        
+        // 마커 업데이트 함수 (선택적 데이터 매개변수)
+        function updateMarkers(dataToUse = null) {
+            // 기존 마커 제거
+            markers.clearLayers();
+            
+            // 카운트 초기화
+            ufoCount = 0;
+            bigfootCount = 0;
+            dogmanCount = 0;
+            
+            // 사용할 데이터 결정
+            let dataToProcess;
+            if (dataToUse) {
+                dataToProcess = dataToUse;
+            } else {
+                dataToProcess = filterDataByYear(allData, currentYearRange);
+            }
+            
+            console.log('마커 업데이트 - 처리할 데이터:', dataToProcess);
+            
+            // 각 타입별로 마커 추가 (필터 적용)
+            Object.keys(dataToProcess).forEach(type => {
+                // 타입 필터 확인
+                if (!typeFilters[type]) return;
+                
+                console.log(`${type} 타입 데이터 개수:`, dataToProcess[type].length);
+                dataToProcess[type].forEach(item => {
+                    // 추가 유효성 검사
+                    if (!isValidData(item)) return;
+                    
+                    const lat = parseFloat(item.latitude);
+                    const lng = parseFloat(item.longitude);
+                    
+                    try {
+                        const marker = createMarker(lat, lng, type, item);
+                        markers.addLayer(marker);
+                        
+                        if (type === 'ufo') ufoCount++;
+                        else if (type === 'bigfoot') bigfootCount++;
+                        else if (type === 'dogman') dogmanCount++;
+                    } catch (error) {
+                        console.warn('마커 생성 오류:', error, item);
+                    }
+                });
+            });
+            
+            console.log('최종 카운트 - UFO:', ufoCount, 'Bigfoot:', bigfootCount, 'Dogman:', dogmanCount);
+            
+            // 통계 업데이트
+            updateStats();
+        }
+        
+        // 연도별 데이터 분포 계산 함수
+        function calculateYearlyData() {
+            const yearlyData = {};
+            
+            Object.keys(allData).forEach(type => {
+                yearlyData[type] = {};
+                allData[type].forEach(item => {
+                    const year = extractYear(item);
+                    if (year && year >= 1900 && year <= 2030) {
+                        yearlyData[type][year] = (yearlyData[type][year] || 0) + 1;
+                    }
+                });
+            });
+            
+            return yearlyData;
+        }
+        
+        // 선그래프 생성 함수
+        function createLineChart() {
+            const svg = document.getElementById('year-chart');
+            svg.innerHTML = '';
+            
+            const yearlyData = calculateYearlyData();
+            const allYears = new Set();
+            
+            Object.values(yearlyData).forEach(data => {
+                Object.keys(data).forEach(year => allYears.add(parseInt(year)));
+            });
+            
+            const years = Array.from(allYears).sort((a, b) => a - b);
+            if (years.length === 0) return;
+            
+            const container = document.getElementById('chart-container');
+            const containerRect = container.getBoundingClientRect();
+            const width = containerRect.width - 20; // 패딩 고려
+            const height = 180;
+            const padding = 20;
+            const chartWidth = width - 2 * padding;
+            const chartHeight = height - 2 * padding;
+            
+            // X축 (연도)
+            const xScale = (year) => padding + ((year - years[0]) / (years[years.length - 1] - years[0])) * chartWidth;
+            
+            // Y축 (개수)
+            const maxCount = Math.max(...Object.values(yearlyData).map(data => 
+                Math.max(...Object.values(data), 0)
+            ));
+            const yScale = (count) => padding + chartHeight - (count / maxCount) * chartHeight;
+            
+            // 축 그리기
+            svg.innerHTML = `
+                <line x1="${padding}" y1="${padding + chartHeight}" x2="${width - padding}" y2="${padding + chartHeight}" class="chart-axis"/>
+                <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${padding + chartHeight}" class="chart-axis"/>
+            `;
+            
+            // 각 타입별 선그래프 그리기 (필터 적용)
+            Object.keys(yearlyData).forEach(type => {
+                // 타입 필터 확인
+                if (!typeFilters[type]) return;
+                const points = years.map(year => {
+                    const count = yearlyData[type][year] || 0;
+                    return `${xScale(year)},${yScale(count)}`;
+                }).join(' L');
+                
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', `M ${points}`);
+                path.setAttribute('class', `chart-line ${type}`);
+                svg.appendChild(path);
+            });
+            
+            // X축 라벨 (5년마다)
+            for (let i = 0; i < years.length; i += 5) {
+                const year = years[i];
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', xScale(year));
+                text.setAttribute('y', height - 5);
+                text.setAttribute('class', 'chart-text');
+                text.textContent = year;
+                svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+                svg.appendChild(text);
+            }
+            
+            // 차트 슬라이더 설정
+            setupChartSlider(years, xScale, width, padding);
+        }
+        
+        // 차트 슬라이더 설정
+        function setupChartSlider(years, xScale, width, padding) {
+            const slider = document.getElementById('chart-slider');
+            const container = document.getElementById('chart-container');
+            let isDragging = false;
+            
+            // 슬라이더 초기 위치 설정 (전체 기간)
+            const initialX = width - padding;
+            slider.style.left = initialX + 'px';
+            
+            // 마우스 이벤트
+            slider.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const containerRect = container.getBoundingClientRect();
+                const x = e.clientX - containerRect.left;
+                const clampedX = Math.max(padding, Math.min(width - padding, x));
+                
+                slider.style.left = clampedX + 'px';
+                
+                // 연도 계산
+                const year = Math.round(years[0] + (clampedX - padding) / (width - 2 * padding) * (years[years.length - 1] - years[0]));
+                const clampedYear = Math.max(years[0], Math.min(years[years.length - 1], year));
+                
+                // 슬라이더 값 업데이트
+                const sliderValue = ((clampedYear - years[0]) / (years[years.length - 1] - years[0])) * 100;
+                document.getElementById('year-slider').value = sliderValue;
+                
+                // 연도 범위 업데이트
+                updateYearRangeFromSlider(sliderValue);
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            // 차트 클릭 이벤트
+            container.addEventListener('click', (e) => {
+                if (e.target === slider) return;
+                
+                const containerRect = container.getBoundingClientRect();
+                const x = e.clientX - containerRect.left;
+                const clampedX = Math.max(padding, Math.min(width - padding, x));
+                
+                slider.style.left = clampedX + 'px';
+                
+                // 연도 계산
+                const year = Math.round(years[0] + (clampedX - padding) / (width - 2 * padding) * (years[years.length - 1] - years[0]));
+                const clampedYear = Math.max(years[0], Math.min(years[years.length - 1], year));
+                
+                // 슬라이더 값 업데이트
+                const sliderValue = ((clampedYear - years[0]) / (years[years.length - 1] - years[0])) * 100;
+                document.getElementById('year-slider').value = sliderValue;
+                
+                // 연도 범위 업데이트
+                updateYearRangeFromSlider(sliderValue);
+            });
+        }
+        
+        // 슬라이더 값으로부터 연도 범위 업데이트
+        function updateYearRangeFromSlider(sliderValue) {
+            const yearlyData = calculateYearlyData();
+            const allYears = new Set();
+            
+            Object.values(yearlyData).forEach(data => {
+                Object.keys(data).forEach(year => allYears.add(parseInt(year)));
+            });
+            
+            const years = Array.from(allYears).sort((a, b) => a - b);
+            if (years.length === 0) return;
+            
+            const targetYear = Math.round(years[0] + (sliderValue / 100) * (years[years.length - 1] - years[0]));
+            const clampedYear = Math.max(years[0], Math.min(years[years.length - 1], targetYear));
+            
+            // 해당 연도까지의 데이터 필터링
+            const filteredData = {};
+            Object.keys(allData).forEach(type => {
+                filteredData[type] = allData[type].filter(item => {
+                    const year = extractYear(item);
+                    return year && year <= clampedYear;
+                });
+            });
+            
+            // 마커 업데이트 (필터링된 데이터 전달)
+            updateMarkers(filteredData);
+            
+            // 연도 범위 표시 업데이트
+            document.getElementById('year-range').textContent = `${years[0]}년 - ${clampedYear}년`;
+        }
+        
+        // 연도 버튼 생성 함수
+        function createYearButtons() {
+            const container = document.getElementById('year-buttons');
+            container.innerHTML = '';
+            
+            yearRanges.forEach((range, index) => {
+                const button = document.createElement('button');
+                button.className = 'year-btn';
+                button.textContent = range.label;
+                button.onclick = () => selectYearRange(index);
+                container.appendChild(button);
+            });
+        }
+        
+        // 연도 범위 선택 함수
+        function selectYearRange(index) {
+            currentYearRange = yearRanges[index];
+            
+            // 버튼 활성화 상태 업데이트
+            document.querySelectorAll('.year-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === index);
+            });
+            
+            // 연도 범위 표시 업데이트
+            const yearRangeElement = document.getElementById('year-range');
+            yearRangeElement.textContent = currentYearRange.label;
+            
+            // 슬라이더 업데이트
+            const slider = document.getElementById('year-slider');
+            slider.value = index;
+            
+            // 마커 업데이트
+            updateMarkers();
+        }
+        
+        // 슬라이더 이벤트 처리
+        function setupSlider() {
+            const slider = document.getElementById('year-slider');
+            slider.max = yearRanges.length - 1;
+            slider.value = yearRanges.length - 1; // 기본값: 전체 기간
+            
+            slider.addEventListener('input', (e) => {
+                const index = parseInt(e.target.value);
+                selectYearRange(index);
+            });
+        }
+        
+        // 드래그 기능 추가
+        function makeDraggable(element) {
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            element.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+
+            function dragStart(e) {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                if (e.target === element || element.contains(e.target)) {
+                    isDragging = true;
+                    element.classList.add('dragging');
+                }
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    element.style.left = currentX + 'px';
+                    element.style.top = currentY + 'px';
+                    element.style.right = 'auto';
+                    element.style.bottom = 'auto';
+                }
+            }
+
+            function dragEnd(e) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+                element.classList.remove('dragging');
+            }
+        }
+
+        // 페이지 로드 시 데이터 로드
+        loadData();
+        
+        // 범례 드래그 가능하게 만들기
+        // 타입 필터 이벤트 리스너 설정
+        function setupTypeFilters() {
+            const filterCheckboxes = {
+                ufo: document.getElementById('ufo-filter'),
+                bigfoot: document.getElementById('bigfoot-filter'),
+                dogman: document.getElementById('dogman-filter')
+            };
+            
+            Object.keys(filterCheckboxes).forEach(type => {
+                const checkbox = filterCheckboxes[type];
+                if (checkbox) {
+                    checkbox.addEventListener('change', function() {
+                        typeFilters[type] = this.checked;
+                        console.log(`${type} 필터 변경:`, this.checked);
+                        
+                        // 마커와 차트 업데이트
+                        updateMarkers();
+                        createLineChart();
+                    });
+                }
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const legend = document.querySelector('.legend');
+            if (legend) {
+                makeDraggable(legend);
+            }
+            
+            // 타입 필터 설정
+            setupTypeFilters();
+        });
+    </script>
+</body>
+</html>
